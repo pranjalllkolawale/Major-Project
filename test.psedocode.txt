@@ -1,0 +1,32 @@
+
+Start
+
+Load pre-trained model "deepfake_detector_final.keras"
+
+Define extract_frames(video):
+    Open video
+    Sample up to 80 frames
+    Convert to RGB and resize to 224x224
+    Return list of frames
+
+Define predict_video(video_path):
+    frames = extract_frames(video_path)
+    Preprocess frames
+    preds = model.predict(frames)
+    mean_score = average(preds)
+    If mean_score > 0.5 → result = "REAL"
+    Else → result = "FAKE"
+    Return result and score
+
+Flask Routes:
+    '/' → render index.html
+    '/predict' (POST):
+        Get uploaded video
+        Save to uploads folder
+        result = predict_video(video_path)
+        Return JSON {filename, result, score}
+
+Run Flask app (debug=True)
+
+End
+```
