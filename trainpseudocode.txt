@@ -1,0 +1,217 @@
+TRAINING PSEUDOCODE
+1. Import Libraries
+   Import os for directory handling
+   Import cv2 (OpenCV) for video processing
+   Import numpy for array handling
+   Import tensorflow and keras for later model integration
+   Import train_test_split from sklearn for dataset splitting
+   Import EfficientNetB0, Model, Dense, Dropout, GlobalAveragePooling2D from keras
+
+2. Define Frame Extraction Function
+   Function extract_frames(video_path, output_dir, frames_per_video=10, size=(128,128)):
+       Open the video using cv2.VideoCapture
+       Get total frame count
+       Calculate step = total_frames // frames_per_video
+       Initialize frame counters
+       Loop through video frames:
+           If frame read is successful:
+               Resize frame to given size
+               Save frame as an image in output_dir
+           Continue until video ends
+       Release video capture
+
+3. Create Output Directories
+   Create folders:
+       frames/original
+       frames/fake
+   using os.makedirs(..., exist_ok=True)
+
+4. Extract Frames from Real Videos
+   For each video in “DFD_original_sequences” folder:
+       Call extract_frames(video_path, "frames/original")
+
+5. Extract Frames from Fake (Manipulated) Videos
+   For each video in “DFD_manipulated_sequences” folder:
+       Call extract_frames(video_path, "frames/fake")
+
+1. Import Libraries
+   Import TensorFlow and Keras modules
+   Import EfficientNetB0 from keras.applications.efficientnet
+   Import layers: GlobalAveragePooling2D, Dense, Dropout
+   Import callbacks: EarlyStopping, ReduceLROnPlateau
+   Import ImageDataGenerator for preprocessing
+
+2. Data Preparation
+   - Set image size = (224, 224)
+   - Define dataset directories for “real” and “fake” images
+   - Initialize ImageDataGenerator with EfficientNet preprocessing, rotation, zoom, and flip augmentations, with validation_split = 0.2
+   - Create training and validation generators using flow_from_directory()
+
+3. Model Architecture
+   - Load EfficientNetB0 base model with ImageNet weights, include_top=False, input_shape=(224,224,3)
+   - Freeze all base layers
+   - Add custom layers:
+        GlobalAveragePooling2D
+        Dropout(0.3)
+        Dense(128, activation='relu')
+        Dropout(0.2)
+        Dense(1, activation='sigmoid')
+   - Combine base and custom layers into final model
+
+4. Model Compilation
+   - Compile model with Adam optimizer (learning_rate=1e-4)
+   - Use binary_crossentropy loss and accuracy as metric
+
+5. Callbacks
+   - EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+   - ReduceLROnPlateau(monitor='val_loss', factor=0.3, patience=3, min_lr=1e-6)
+
+6. Stage 1: Training (Feature Extraction)
+   - Train model on training data for 10 epochs with validation data
+   - Use callbacks for early stopping and learning rate adjustment
+   - Save model as “deepfake_detector_base.h5”
+
+7. Stage 2: Fine-Tuning
+   - Unfreeze top 20% of EfficientNetB0 layers
+   - Recompile model with lower learning rate (1e-5)
+   - Train again for 5–10 epochs with validation data
+   - Save fine-tuned model as “deepfake_detector_finetuned.h5”
+
+8. Evaluation and Deployment
+   - Evaluate final model on validation/test dataset
+   - Print accuracy, precision, recall, and F1-score
+   - Convert trained model to “deepfake_detector_final.keras” format for Flask deployment
+   - Use the model in Flask app to classify uploaded images or video frames as Real or Fake with confidence score
+1. Import Libraries
+   Import:
+       - os for file handling
+       - cv2 for video frame extraction
+       - numpy for array operations
+       - tensorflow and keras for model loading and fine-tuning
+
+2. Load Pre-trained Model
+   Define model_path = "deepfake_detector_finetuned.h5"
+   Load trained model using load_model(model_path)
+   Print confirmation message
+
+3. Define Parameters
+   img_size = (224, 224)
+   batch_size = 16
+   epochs = 2  (for quick fine-tuning)
+   frames_to_sample = 50  (number of frames to extract per video)
+   threshold = 0.2  (classification cutoff for fake/real)
+
+4. Define Function to Extract Frames
+   Function extract_frames(video_path, max_frames=50, img_size=(224,224)):
+       Open video using cv2.VideoCapture
+       If video cannot be opened:
+           Print warning and return empty array
+       Get total number of frames
+       If total_frames == 0:
+           Print warning and return empty array
+       Calculate frame sampling step = total_frames // max_frames
+       Initialize empty list 'frames'
+       Loop through video frames:
+           Read frame
+           If unsuccessful, break loop
+           If frame count matches sampling step:
+               Resize frame to img_size
+               Normalize pixel values (divide by 255)
+               Append to frames list
+       Release video capture
+       Convert frames list to numpy array
+       If no frames extracted, print warning
+       Return frames array
+
+5. Prepare Fine-tuning Dataset
+   Initialize list of original_videos (e.g., paths to real videos)
+   Initialize X_real = [], y_real = []
+   For each video in original_videos:
+       Extract frames using extract_frames()
+       If frames exist:
+           Append frames to X_real
+           Label all frames as 1 (real)
+   If no frames extracted:
+       Print warning and skip fine-tuning
+   Else:
+       Concatenate all X_real and y_real arrays
+       Print total number of frames prepared
+
+6. Fine-tune Last Layers of Model
+   Unfreeze last 50 layers of the model for training
+   Compile model with:
+       Optimizer = Adam(learning_rate=1e-5)
+       Loss = binary_crossentropy
+       Metrics = accuracy
+   Train model using:
+       X_real, y_real
+       batch_size = 16
+       epochs = 2
+       shuffle = True
+   Save updated model as "deepfake_detector_finetuned_quick.keras"
+   Print confirmation message
+1. Import Required Libraries:
+   Import os, cv2, numpy
+   From tensorflow.keras.models import load_model
+   From tensorflow.keras.applications.efficientnet import preprocess_input
+
+2. Configuration:
+   MODEL_PATH = "deepfake_detector_final.keras"
+   ORIGINAL_VIDEOS_DIR = path to real/original videos
+   FAKE_VIDEOS_DIR = path to fake videos
+   TEST_VIDEO = path to test video
+   IMG_SIZE = (224, 224)
+
+3. Define extract_frames(video_path, max_frames, img_size):
+      Initialize empty list 'frames'
+      Open video using cv2.VideoCapture(video_path)
+      total_frames = total number of frames in video
+      interval = total_frames // max_frames
+      For each frame in video:
+          Read frame
+          If not successful, break
+          If frame index % interval == 0:
+              Convert frame to RGB
+              Resize to img_size
+              Append to 'frames'
+      Release video
+      Return frames as NumPy array
+
+4. Define load_frames_from_folder(folder_path, max_videos, max_frames, img_size):
+      Initialize empty list X
+      For each video in folder:
+          If file not video format, continue
+          If loaded videos >= max_videos, break
+          frames = extract_frames(video_path, max_frames, img_size)
+          Append frames to X
+      Return X as NumPy array
+
+5. Define calibrate_threshold(model, real_dir, fake_dir, max_frames):
+      Define mean_score(folder):
+          frames = load_frames_from_folder(folder, 2, max_frames)
+          preds = model.predict(preprocess_input(frames))
+          Return average(preds)
+      real_mean = mean_score(real_dir)
+      fake_mean = mean_score(fake_dir)
+      threshold = (real_mean + fake_mean) / 2
+      Print real_mean, fake_mean, threshold
+      Return threshold
+
+6. Define predict_video(video_path, model, threshold, frames_to_sample, img_size):
+      frames = extract_frames(video_path, frames_to_sample, img_size)
+      If no frames found:
+          Print warning and exit
+      frames = preprocess_input(frames)
+      preds = model.predict(frames)
+      mean_score = average(preds)
+      If mean_score > threshold:
+          result = "REAL"
+      Else:
+          result = "FAKE"
+      Print video name, result, mean_score, first 10 binary frame predictions
+
+7. Main Execution:
+      Print "Loading model..."
+      model = load_model(MODEL_PATH)
+      threshold = calibrate_threshold(model, ORIGINAL_VIDEOS_DIR, FAKE_VIDEOS_DIR)
+      predict_video(TEST_VIDEO, model, threshold)
